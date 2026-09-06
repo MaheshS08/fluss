@@ -18,6 +18,7 @@
 package org.apache.fluss.server.utils;
 
 import org.apache.fluss.cluster.Endpoint;
+import org.apache.fluss.cluster.CoordinatorRole;
 import org.apache.fluss.cluster.ServerNode;
 import org.apache.fluss.cluster.ServerType;
 import org.apache.fluss.cluster.rebalance.RebalancePlanForBucket;
@@ -108,6 +109,7 @@ import org.apache.fluss.rpc.messages.PbAdjustIsrRespForTable;
 import org.apache.fluss.rpc.messages.PbAlterConfig;
 import org.apache.fluss.rpc.messages.PbBucketMetadata;
 import org.apache.fluss.rpc.messages.PbBucketOffset;
+import org.apache.fluss.rpc.messages.PbCoordinatorServerInfo;
 import org.apache.fluss.rpc.messages.PbCreateAclRespInfo;
 import org.apache.fluss.rpc.messages.PbDatabaseSummary;
 import org.apache.fluss.rpc.messages.PbDescribeConfig;
@@ -493,6 +495,57 @@ public class ServerRpcMessageUtils {
         return metadataResponse;
     }
 
+    public static MetadataResponse buildMetadataResponse(
+            @Nullable ServerNode coordinatorServer,
+            Set<ServerNode> aliveTabletServers,
+            List<TableMetadata> tableMetadataList,
+            List<PartitionMetadata> partitionMetadataList,
+            List<ServerNode> allCoordinators,
+            java.util.Map<Integer, CoordinatorRole> coordinatorRoles,
+            java.util.Set<Integer> liveCoordinatorIds) {
+        MetadataResponse metadataResponse =
+                buildMetadataResponse(
+                        coordinatorServer,
+                        aliveTabletServers,
+                        tableMetadataList,
+                        partitionMetadataList);
+
+        List<PbCoordinatorServerInfo> pbCoordinatorServerInfoList = new ArrayList<>();
+        for (ServerNode coordinatorNode : allCoordinators) {
+            pbCoordinatorServerInfoList.add(
+                    toPbCoordinatorServerInfo(
+                            coordinatorNode,
+                            coordinatorRoles.getOrDefault(coordinatorNode.id(), null),
+                            liveCoordinatorIds.contains(coordinatorNode.id())));
+        }
+
+        metadataResponse.addAllCoordinatorServers(pbCoordinatorServerInfoList);
+        return metadataResponse;
+    }
+
+    private static PbCoordinatorServerInfo toPbCoordinatorServerInfo(
+            ServerNode coordinatorNode,
+            @Nullable CoordinatorRole role,
+            boolean isLive) {
+        PbCoordinatorServerInfo pbCoordinatorServerInfo = new PbCoordinatorServerInfo();
+        PbServerNode pbServerNode =
+                new PbServerNode()
+                        .setNodeId(coordinatorNode.id())
+                        .setHost(coordinatorNode.host())
+                        .setPort(coordinatorNode.port());
+        if (coordinatorNode.rack() != null) {
+            pbServerNode.setRack(coordinatorNode.rack());
+        }
+        pbCoordinatorServerInfo.setServerNode(pbServerNode);
+
+        if (role != null) {
+            pbCoordinatorServerInfo.setCoordinatorRole(role.getRoleId());
+        }
+
+        pbCoordinatorServerInfo.setIsLive(isLive);
+        return pbCoordinatorServerInfo;
+    }
+
     public static UpdateMetadataRequest makeUpdateMetadataRequest(
             @Nullable ServerInfo coordinatorServer,
             @Nullable Integer coordinatorEpoch,
@@ -541,6 +594,52 @@ public class ServerRpcMessageUtils {
         if (coordinatorEpoch != null) {
             updateMetadataRequest.setCoordinatorEpoch(coordinatorEpoch);
         }
+        return updateMetadataRequest;
+    }
+
+    public static UpdateMetadataRequest makeUpdateMetadataRequest(
+            @Nullable ServerInfo coordinatorServer,
+            @Nullable Integer coordinatorEpoch,
+            Set<ServerInfo> aliveTableServers,
+            List<TableMetadata> tableMetadataList,
+            List<PartitionMetadata> partitionMetadataList,
+            List<ServerInfo> allCoordinators,
+            java.util.Map<Integer, CoordinatorRole> coordinatorRoles,
+            java.util.Set<Integer> liveCoordinatorIds) {
+        UpdateMetadataRequest updateMetadataRequest =
+                makeUpdateMetadataRequest(
+                        coordinatorServer,
+                        coordinatorEpoch,
+                        aliveTableServers,
+                        tableMetadataList,
+                        partitionMetadataList);
+
+        List<PbCoordinatorServerInfo> pbCoordinatorServerInfoList = new ArrayList<>();
+        for (ServerInfo coordinatorServerInfo : allCoordinators) {
+            List<Endpoint> endpoints = coordinatorServerInfo.endpoints();
+            PbServerNode pbServerNode =
+                    new PbServerNode()
+                            .setNodeId(coordinatorServerInfo.id())
+                            .setListeners(Endpoint.toListenersString(endpoints))
+                            .setHost(endpoints.get(0).getHost())
+                            .setPort(endpoints.get(0).getPort());
+            if (coordinatorServerInfo.rack() != null) {
+                pbServerNode.setRack(coordinatorServerInfo.rack());
+            }
+
+            PbCoordinatorServerInfo pbCoordinatorServerInfo = new PbCoordinatorServerInfo();
+            pbCoordinatorServerInfo.setServerNode(pbServerNode);
+
+            CoordinatorRole role = coordinatorRoles.get(coordinatorServerInfo.id());
+            if (role != null) {
+                pbCoordinatorServerInfo.setCoordinatorRole(role.getRoleId());
+            }
+
+            pbCoordinatorServerInfo.setIsLive(liveCoordinatorIds.contains(coordinatorServerInfo.id()));
+            pbCoordinatorServerInfoList.add(pbCoordinatorServerInfo);
+        }
+
+        updateMetadataRequest.addAllCoordinatorServers(pbCoordinatorServerInfoList);
         return updateMetadataRequest;
     }
 
@@ -596,8 +695,57 @@ public class ServerRpcMessageUtils {
                         partitionMetadata ->
                                 partitionMetadataList.add(toPartitionMetadata(partitionMetadata)));
 
+        // Parse coordinator servers
+        List<ServerInfo> allCoordinators = new ArrayList<>();
+        java.util.Map<Integer, CoordinatorRole> coordinatorRoles = new java.util.HashMap<>();
+        java.util.Set<Integer> liveCoordinatorIds = new java.util.HashSet<>();
+
+        for (PbCoordinatorServerInfo pbCoordinatorServerInfo :
+                request.getCoordinatorServersList()) {
+            PbServerNode pbServerNode = pbCoordinatorServerInfo.getServerNode();
+            List<Endpoint> endpoints =
+                    pbServerNode.hasListeners()
+                            ? Endpoint.fromListenersString(pbServerNode.getListeners())
+                            // backward compatible with old version that doesn't have listeners
+                            : Collections.singletonList(
+                                    new Endpoint(
+                                            pbServerNode.getHost(),
+                                            pbServerNode.getPort(),
+                                            // TODO: maybe use internal listener name from conf
+                                            ConfigOptions.INTERNAL_LISTENER_NAME.defaultValue()));
+            ServerInfo coordinatorInfo =
+                    new ServerInfo(
+                            pbServerNode.getNodeId(),
+                            pbServerNode.hasRack() ? pbServerNode.getRack() : null,
+                            endpoints,
+                            ServerType.COORDINATOR);
+            allCoordinators.add(coordinatorInfo);
+
+            // Parse coordinator role
+            if (pbCoordinatorServerInfo.hasCoordinatorRole()) {
+                CoordinatorRole role =
+                        CoordinatorRole.fromRoleId(pbCoordinatorServerInfo.getCoordinatorRole());
+                if (role != null) {
+                    coordinatorRoles.put(pbServerNode.getNodeId(), role);
+                }
+            }
+
+            // Parse liveness
+            if (pbCoordinatorServerInfo.hasIsLive()) {
+                if (pbCoordinatorServerInfo.getIsLive()) {
+                    liveCoordinatorIds.add(pbServerNode.getNodeId());
+                }
+            }
+        }
+
         return new ClusterMetadata(
-                coordinatorServer, aliveTabletServers, tableMetadataList, partitionMetadataList);
+                coordinatorServer,
+                allCoordinators,
+                coordinatorRoles,
+                liveCoordinatorIds,
+                aliveTabletServers,
+                tableMetadataList,
+                partitionMetadataList);
     }
 
     private static PbTableMetadata toPbTableMetadata(TableMetadata tableMetadata) {

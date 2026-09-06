@@ -89,7 +89,38 @@ import java.util.concurrent.CompletableFuture;
 @PublicEvolving
 public interface Admin extends AutoCloseable {
 
-    /** Get the current server node information. asynchronously. */
+    /**
+     * Get the current server node information asynchronously.
+     *
+     * <p>Returns all servers in the cluster including:
+     * <ul>
+     *   <li>All coordinator servers (both leader and standbys) with their roles and liveness status
+     *   <li>All alive tablet servers
+     * </ul>
+     *
+     * <p><b>Example usage:</b>
+     * <pre>{@code
+     * List<ServerNode> nodes = admin.getServerNodes().get();
+     *
+     * // Filter by role
+     * List<ServerNode> leaders = nodes.stream()
+     *     .filter(node -> node.coordinatorRole() == CoordinatorRole.LEADER)
+     *     .collect(Collectors.toList());
+     *
+     * // Filter by liveness
+     * List<ServerNode> liveCoordinators = nodes.stream()
+     *     .filter(ServerNode::isCoordinatorLive)
+     *     .collect(Collectors.toList());
+     *
+     * // Filter by role and liveness
+     * List<ServerNode> liveStandbys = nodes.stream()
+     *     .filter(node -> node.coordinatorRole() == CoordinatorRole.STANDBY)
+     *     .filter(ServerNode::isCoordinatorLive)
+     *     .collect(Collectors.toList());
+     * }</pre>
+     *
+     * @return a CompletableFuture containing the list of all server nodes
+     */
     CompletableFuture<List<ServerNode>> getServerNodes();
 
     /**

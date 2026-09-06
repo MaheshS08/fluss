@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.apache.fluss.cluster;
 
 import org.apache.fluss.annotation.PublicEvolving;
@@ -39,20 +22,45 @@ public class ServerNode {
     /** rack info for ServerNode. Currently, only tabletServer has rack info. */
     private final @Nullable String rack;
 
+    /** The role of the coordinator server. Only set for COORDINATOR server type. */
+    private final @Nullable CoordinatorRole coordinatorRole;
+
+    /** Flag indicating whether the coordinator server is live. */
+    private final boolean isCoordinatorLive;
+
     // Cache hashCode as it is called in performance sensitive parts of the code (e.g.
     // RecordAccumulator.ready)
     private Integer hash;
 
     public ServerNode(int id, String host, int port, ServerType serverType) {
-        this(id, host, port, serverType, null);
+        this(id, host, port, serverType, null, null, false);
     }
 
     public ServerNode(int id, String host, int port, ServerType serverType, @Nullable String rack) {
+        this(id, host, port, serverType, rack, null, false);
+    }
+
+    public ServerNode(
+            int id,
+            String host,
+            int port,
+            ServerType serverType,
+            @Nullable String rack,
+            @Nullable CoordinatorRole coordinatorRole,
+            boolean isCoordinatorLive) {
         this.id = id;
         this.host = host;
         this.port = port;
         this.serverType = serverType;
         this.rack = rack;
+        this.coordinatorRole = coordinatorRole;
+        this.isCoordinatorLive = isCoordinatorLive;
+
+        if (coordinatorRole != null && serverType != ServerType.COORDINATOR) {
+            throw new IllegalArgumentException(
+                    "coordinatorRole can only be set for COORDINATOR server type");
+        }
+
         if (serverType == ServerType.COORDINATOR) {
             this.uid = "cs-" + id;
         } else {
@@ -97,6 +105,24 @@ public class ServerNode {
     }
 
     /**
+     * The role of this coordinator server.
+     *
+     * @return the coordinator role, or null if not a coordinator server
+     */
+    public @Nullable CoordinatorRole coordinatorRole() {
+        return coordinatorRole;
+    }
+
+    /**
+     * Whether this coordinator server is live.
+     *
+     * @return true if the coordinator server is live, false otherwise
+     */
+    public boolean isCoordinatorLive() {
+        return isCoordinatorLive;
+    }
+
+    /**
      * Check whether this node is empty, which may be the case if noNode() is used as a placeholder
      * in a response payload with an error.
      *
@@ -115,6 +141,8 @@ public class ServerNode {
             result = 31 * result + port;
             result = 31 * result + serverType.hashCode();
             result = 31 * result + ((rack == null) ? 0 : rack.hashCode());
+            result = 31 * result + ((coordinatorRole == null) ? 0 : coordinatorRole.hashCode());
+            result = 31 * result + (isCoordinatorLive ? 1 : 0);
             this.hash = result;
             return result;
         } else {
@@ -135,11 +163,24 @@ public class ServerNode {
                 && port == other.port
                 && Objects.equals(host, other.host)
                 && serverType == other.serverType
-                && Objects.equals(rack, other.rack);
+                && Objects.equals(rack, other.rack)
+                && coordinatorRole == other.coordinatorRole
+                && isCoordinatorLive == other.isCoordinatorLive;
     }
 
     @Override
     public String toString() {
-        return host + ":" + port + " (id: " + uid + ", rack: " + rack + ")";
+        return host
+                + ":"
+                + port
+                + " (id: "
+                + uid
+                + ", rack: "
+                + rack
+                + ", coordinator_role: "
+                + coordinatorRole
+                + ", is_live: "
+                + isCoordinatorLive
+                + ")";
     }
 }

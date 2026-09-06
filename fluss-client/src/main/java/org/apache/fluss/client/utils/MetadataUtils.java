@@ -19,6 +19,7 @@ package org.apache.fluss.client.utils;
 
 import org.apache.fluss.cluster.BucketLocation;
 import org.apache.fluss.cluster.Cluster;
+import org.apache.fluss.cluster.CoordinatorRole;
 import org.apache.fluss.cluster.ServerNode;
 import org.apache.fluss.cluster.ServerType;
 import org.apache.fluss.exception.StaleMetadataException;
@@ -31,6 +32,7 @@ import org.apache.fluss.rpc.gateway.AdminReadOnlyGateway;
 import org.apache.fluss.rpc.messages.MetadataRequest;
 import org.apache.fluss.rpc.messages.MetadataResponse;
 import org.apache.fluss.rpc.messages.PbBucketMetadata;
+import org.apache.fluss.rpc.messages.PbCoordinatorServerInfo;
 import org.apache.fluss.rpc.messages.PbPartitionMetadata;
 import org.apache.fluss.rpc.messages.PbServerNode;
 import org.apache.fluss.rpc.messages.PbTableMetadata;
@@ -117,6 +119,7 @@ public class MetadataUtils {
                                 throw new StaleMetadataException("Alive tablet server is empty.");
                             }
                             ServerNode coordinatorServer = getCoordinatorServer(response);
+                            List<ServerNode> allCoordinators = getAllCoordinators(response);
 
                             Map<TablePath, Long> newTablePathToTableId;
                             Map<PhysicalTablePath, List<BucketLocation>> newBucketLocations;
@@ -152,7 +155,8 @@ public class MetadataUtils {
                                     coordinatorServer,
                                     newBucketLocations,
                                     newTablePathToTableId,
-                                    newPartitionIdByPath);
+                                    newPartitionIdByPath,
+                                    allCoordinators);
                         })
                 .get(30, TimeUnit.SECONDS); // TODO currently, we don't have timeout logic in
         // RpcClient, it will let the get() block forever. So we
@@ -257,6 +261,33 @@ public class MetadataUtils {
                     protoServerNode.getPort(),
                     ServerType.COORDINATOR);
         }
+    }
+
+    private static List<ServerNode> getAllCoordinators(MetadataResponse response) {
+        List<ServerNode> allCoordinators = new ArrayList<>();
+        for (PbCoordinatorServerInfo pbCoordinatorServerInfo :
+                response.getCoordinatorServersList()) {
+            PbServerNode pbServerNode = pbCoordinatorServerInfo.getServerNode();
+            CoordinatorRole role = null;
+            if (pbCoordinatorServerInfo.hasCoordinatorRole()) {
+                role = CoordinatorRole.fromRoleId(pbCoordinatorServerInfo.getCoordinatorRole());
+            }
+            boolean isLive = false;
+            if (pbCoordinatorServerInfo.hasIsLive()) {
+                isLive = pbCoordinatorServerInfo.getIsLive();
+            }
+            ServerNode coordinatorNode =
+                    new ServerNode(
+                            pbServerNode.getNodeId(),
+                            pbServerNode.getHost(),
+                            pbServerNode.getPort(),
+                            ServerType.COORDINATOR,
+                            pbServerNode.hasRack() ? pbServerNode.getRack() : null,
+                            role,
+                            isLive);
+            allCoordinators.add(coordinatorNode);
+        }
+        return allCoordinators;
     }
 
     private static Map<Integer, ServerNode> getAliveTabletServers(MetadataResponse response) {

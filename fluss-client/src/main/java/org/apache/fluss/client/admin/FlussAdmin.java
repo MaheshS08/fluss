@@ -193,7 +193,7 @@ public class FlussAdmin implements Admin {
                                         null,
                                         null,
                                         null);
-                        serverNodeList.add(cluster.getCoordinatorServer());
+                        serverNodeList.addAll(cluster.getAllCoordinators());
                         serverNodeList.addAll(cluster.getAliveTabletServerList());
                         future.complete(serverNodeList);
                     } catch (Throwable t) {

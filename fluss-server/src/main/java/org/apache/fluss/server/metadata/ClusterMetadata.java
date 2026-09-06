@@ -18,6 +18,7 @@
 package org.apache.fluss.server.metadata;
 
 import org.apache.fluss.annotation.VisibleForTesting;
+import org.apache.fluss.cluster.CoordinatorRole;
 import org.apache.fluss.rpc.messages.MetadataResponse;
 import org.apache.fluss.rpc.messages.UpdateMetadataRequest;
 
@@ -25,6 +26,7 @@ import javax.annotation.Nullable;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -35,6 +37,9 @@ import java.util.Set;
 public class ClusterMetadata {
 
     private final @Nullable ServerInfo coordinatorServer;
+    private final List<ServerInfo> allCoordinators;
+    private final Map<Integer, CoordinatorRole> coordinatorRoles;
+    private final Set<Integer> liveCoordinatorIds;
     private final Set<ServerInfo> aliveTabletServers;
     private final List<TableMetadata> tableMetadataList;
     private final List<PartitionMetadata> partitionMetadataList;
@@ -44,6 +49,9 @@ public class ClusterMetadata {
             @Nullable ServerInfo coordinatorServer, Set<ServerInfo> aliveTabletServers) {
         this(
                 coordinatorServer,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                Collections.emptySet(),
                 aliveTabletServers,
                 Collections.emptyList(),
                 Collections.emptyList());
@@ -54,7 +62,28 @@ public class ClusterMetadata {
             Set<ServerInfo> aliveTabletServers,
             List<TableMetadata> tableMetadataList,
             List<PartitionMetadata> partitionMetadataList) {
+        this(
+                coordinatorServer,
+                Collections.emptyList(),
+                Collections.emptyMap(),
+                Collections.emptySet(),
+                aliveTabletServers,
+                tableMetadataList,
+                partitionMetadataList);
+    }
+
+    public ClusterMetadata(
+            @Nullable ServerInfo coordinatorServer,
+            List<ServerInfo> allCoordinators,
+            Map<Integer, CoordinatorRole> coordinatorRoles,
+            Set<Integer> liveCoordinatorIds,
+            Set<ServerInfo> aliveTabletServers,
+            List<TableMetadata> tableMetadataList,
+            List<PartitionMetadata> partitionMetadataList) {
         this.coordinatorServer = coordinatorServer;
+        this.allCoordinators = allCoordinators;
+        this.coordinatorRoles = coordinatorRoles;
+        this.liveCoordinatorIds = liveCoordinatorIds;
         this.aliveTabletServers = aliveTabletServers;
         this.tableMetadataList = tableMetadataList;
         this.partitionMetadataList = partitionMetadataList;
@@ -62,6 +91,18 @@ public class ClusterMetadata {
 
     public @Nullable ServerInfo getCoordinatorServer() {
         return coordinatorServer;
+    }
+
+    public List<ServerInfo> getAllCoordinators() {
+        return allCoordinators;
+    }
+
+    public Map<Integer, CoordinatorRole> getCoordinatorRoles() {
+        return coordinatorRoles;
+    }
+
+    public Set<Integer> getLiveCoordinatorIds() {
+        return liveCoordinatorIds;
     }
 
     public Set<ServerInfo> getAliveTabletServers() {

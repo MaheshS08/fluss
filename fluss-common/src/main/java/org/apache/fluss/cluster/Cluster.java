@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
  * An immutable representation of a subset of the server nodes, tables, and buckets and schemas in
@@ -44,6 +45,7 @@ import java.util.concurrent.ThreadLocalRandom;
 @Internal
 public final class Cluster {
     @Nullable private final ServerNode coordinatorServer;
+    private final List<ServerNode> allCoordinators;
     private final Map<PhysicalTablePath, List<BucketLocation>> availableLocationsByPath;
     private final Map<TableBucket, BucketLocation> availableLocationByBucket;
     private final Map<Integer, ServerNode> aliveTabletServersById;
@@ -59,7 +61,24 @@ public final class Cluster {
             Map<PhysicalTablePath, List<BucketLocation>> bucketLocationsByPath,
             Map<TablePath, Long> tableIdByPath,
             Map<PhysicalTablePath, Long> partitionsIdByPath) {
+        this(
+                aliveTabletServersById,
+                coordinatorServer,
+                bucketLocationsByPath,
+                tableIdByPath,
+                partitionsIdByPath,
+                Collections.emptyList());
+    }
+
+    public Cluster(
+            Map<Integer, ServerNode> aliveTabletServersById,
+            @Nullable ServerNode coordinatorServer,
+            Map<PhysicalTablePath, List<BucketLocation>> bucketLocationsByPath,
+            Map<TablePath, Long> tableIdByPath,
+            Map<PhysicalTablePath, Long> partitionsIdByPath,
+            List<ServerNode> allCoordinators) {
         this.coordinatorServer = coordinatorServer;
+        this.allCoordinators = Collections.unmodifiableList(new ArrayList<>(allCoordinators));
         this.aliveTabletServersById = Collections.unmodifiableMap(aliveTabletServersById);
         this.aliveTabletServers =
                 Collections.unmodifiableList(new ArrayList<>(aliveTabletServersById.values()));
@@ -132,7 +151,8 @@ public final class Cluster {
                 coordinatorServer,
                 newBucketLocationsByPath,
                 new HashMap<>(tableIdByPath),
-                new HashMap<>(partitionsIdByPath));
+                new HashMap<>(partitionsIdByPath),
+                new ArrayList<>(allCoordinators));
     }
 
     /** Invalidates bucket metadata and partition ID mappings for the given physical table paths. */
@@ -148,12 +168,71 @@ public final class Cluster {
                 coordinatorServer,
                 new HashMap<>(cluster.availableLocationsByPath),
                 new HashMap<>(tableIdByPath),
-                newPartitionsIdByPath);
+                newPartitionsIdByPath,
+                new ArrayList<>(allCoordinators));
     }
 
     @Nullable
     public ServerNode getCoordinatorServer() {
         return coordinatorServer;
+    }
+
+    /**
+     * Get all coordinator servers (both leader and standbys).
+     *
+     * @return the list of all coordinator servers
+     */
+    public List<ServerNode> getAllCoordinators() {
+        return allCoordinators;
+    }
+
+    /**
+     * Get coordinator servers by role.
+     *
+     * @param role the coordinator role to filter by
+     * @return the list of coordinator servers with the specified role
+     */
+    public List<ServerNode> getCoordinatorsByRole(CoordinatorRole role) {
+        return allCoordinators.stream()
+                .filter(node -> role == node.coordinatorRole())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Check whether a coordinator server is live.
+     *
+     * @param coordinatorId the coordinator server ID
+     * @return true if the coordinator is live, false otherwise
+     */
+    public boolean isCoordinatorLive(int coordinatorId) {
+        return allCoordinators.stream()
+                .filter(node -> node.id() == coordinatorId)
+                .findFirst()
+                .map(ServerNode::isCoordinatorLive)
+                .orElse(false);
+    }
+
+    /**
+     * Get the count of all coordinator servers.
+     *
+     * @return the number of coordinator servers
+     */
+    public int getCoordinatorCount() {
+        return allCoordinators.size();
+    }
+
+    /**
+     * Get coordinator servers by role and liveness.
+     *
+     * @param role the coordinator role to filter by
+     * @param isLive true to get only live coordinators, false to get only dead coordinators
+     * @return the list of coordinator servers matching the criteria
+     */
+    public List<ServerNode> getCoordinatorsByRoleAndLiveness(CoordinatorRole role, boolean isLive) {
+        return allCoordinators.stream()
+                .filter(node -> role == node.coordinatorRole())
+                .filter(node -> node.isCoordinatorLive() == isLive)
+                .collect(Collectors.toList());
     }
 
     /**

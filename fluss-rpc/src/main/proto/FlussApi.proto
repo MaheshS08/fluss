@@ -186,6 +186,13 @@ message TableExistsResponse {
   required bool exists = 1;
 }
 
+// Coordinator server information with role and liveness indicator.
+message PbCoordinatorServerInfo {
+  required PbServerNode server_node = 1;
+  optional int32 coordinator_role = 2;
+  optional bool is_live = 3;
+}
+
 // metadata request and response, request send from client to each server.
 message MetadataRequest {
   repeated PbTablePath table_path = 1;
@@ -202,6 +209,7 @@ message MetadataResponse {
   repeated PbServerNode tablet_servers = 2;
   repeated PbTableMetadata table_metadata = 3;
   repeated PbPartitionMetadata partition_metadata = 4;
+  repeated PbCoordinatorServerInfo coordinator_servers = 5;
 }
 
 // update metadata request and response, only send between server.
@@ -211,6 +219,7 @@ message UpdateMetadataRequest {
   repeated PbTableMetadata table_metadata = 3;
   repeated PbPartitionMetadata partition_metadata = 4;
   optional int32 coordinator_epoch = 5;
+  repeated PbCoordinatorServerInfo coordinator_servers = 6;
 }
 
 message UpdateMetadataResponse {
