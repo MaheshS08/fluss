@@ -93,12 +93,14 @@ public interface Admin extends AutoCloseable {
      * Get the current server node information asynchronously.
      *
      * <p>Returns all servers in the cluster including:
+     *
      * <ul>
      *   <li>All coordinator servers (both leader and standbys) with their roles and liveness status
      *   <li>All alive tablet servers
      * </ul>
      *
      * <p><b>Example usage:</b>
+     *
      * <pre>{@code
      * List<ServerNode> nodes = admin.getServerNodes().get();
      *

@@ -17,8 +17,8 @@
 
 package org.apache.fluss.server.utils;
 
-import org.apache.fluss.cluster.Endpoint;
 import org.apache.fluss.cluster.CoordinatorRole;
+import org.apache.fluss.cluster.Endpoint;
 import org.apache.fluss.cluster.ServerNode;
 import org.apache.fluss.cluster.ServerType;
 import org.apache.fluss.cluster.rebalance.RebalancePlanForBucket;
@@ -524,9 +524,7 @@ public class ServerRpcMessageUtils {
     }
 
     private static PbCoordinatorServerInfo toPbCoordinatorServerInfo(
-            ServerNode coordinatorNode,
-            @Nullable CoordinatorRole role,
-            boolean isLive) {
+            ServerNode coordinatorNode, @Nullable CoordinatorRole role, boolean isLive) {
         PbCoordinatorServerInfo pbCoordinatorServerInfo = new PbCoordinatorServerInfo();
         PbServerNode pbServerNode =
                 new PbServerNode()
@@ -635,7 +633,8 @@ public class ServerRpcMessageUtils {
                 pbCoordinatorServerInfo.setCoordinatorRole(role.getRoleId());
             }
 
-            pbCoordinatorServerInfo.setIsLive(liveCoordinatorIds.contains(coordinatorServerInfo.id()));
+            pbCoordinatorServerInfo.setIsLive(
+                    liveCoordinatorIds.contains(coordinatorServerInfo.id()));
             pbCoordinatorServerInfoList.add(pbCoordinatorServerInfo);
         }
 
@@ -732,7 +731,7 @@ public class ServerRpcMessageUtils {
 
             // Parse liveness
             if (pbCoordinatorServerInfo.hasIsLive()) {
-                if (pbCoordinatorServerInfo.getIsLive()) {
+                if (pbCoordinatorServerInfo.isIsLive()) {
                     liveCoordinatorIds.add(pbServerNode.getNodeId());
                 }
             }

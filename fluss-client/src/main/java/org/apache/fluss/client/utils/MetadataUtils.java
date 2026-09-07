@@ -274,7 +274,7 @@ public class MetadataUtils {
             }
             boolean isLive = false;
             if (pbCoordinatorServerInfo.hasIsLive()) {
-                isLive = pbCoordinatorServerInfo.getIsLive();
+                isLive = pbCoordinatorServerInfo.isIsLive();
             }
             ServerNode coordinatorNode =
                     new ServerNode(

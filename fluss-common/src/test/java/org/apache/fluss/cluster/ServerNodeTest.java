@@ -45,7 +45,40 @@ public class ServerNodeTest {
         assertThat(serverNode.hashCode()).isNotEqualTo(serverNode2.hashCode());
         assertThat(serverNode).isEqualTo(new ServerNode(0, "HOST1", 9023, ServerType.COORDINATOR));
 
-        assertThat(serverNode.toString()).isEqualTo("HOST1:9023 (id: cs-0, rack: null)");
-        assertThat(serverNode2.toString()).isEqualTo("HOST2:9123 (id: ts-1, rack: null)");
+        assertThat(serverNode.toString())
+                .isEqualTo(
+                        "HOST1:9023 (id: cs-0, rack: null, coordinator_role: null, is_live: false)");
+        assertThat(serverNode2.toString())
+                .isEqualTo(
+                        "HOST2:9123 (id: ts-1, rack: null, coordinator_role: null, is_live: false)");
+    }
+
+    @Test
+    void testServerNodeWithCoordinatorServerInfo() {
+        // Test ServerNode created with LEADER role
+        ServerNode leaderNode =
+                new ServerNode(
+                        0,
+                        "localhost",
+                        9023,
+                        ServerType.COORDINATOR,
+                        null,
+                        CoordinatorRole.LEADER,
+                        true);
+        assertThat(leaderNode.coordinatorRole()).isEqualTo(CoordinatorRole.LEADER);
+        assertThat(leaderNode.isCoordinatorLive()).isTrue();
+        assertThat(leaderNode.serverType()).isEqualTo(ServerType.COORDINATOR);
+
+        ServerNode standbyNode =
+                new ServerNode(
+                        1,
+                        "localhost",
+                        9024,
+                        ServerType.COORDINATOR,
+                        null,
+                        CoordinatorRole.STANDBY,
+                        true);
+        assertThat(standbyNode.coordinatorRole()).isEqualTo(CoordinatorRole.STANDBY);
+        assertThat(standbyNode.isCoordinatorLive()).isTrue();
     }
 }

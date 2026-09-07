@@ -165,6 +165,346 @@ class ClusterTest {
         assertThat(selectedNodes).hasSizeGreaterThan(1);
     }
 
+    @Test
+    void testGetAllCoordinators() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true),
+                        new ServerNode(
+                                2,
+                                "localhost",
+                                9125,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                false));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        assertThat(cluster.getAllCoordinators()).hasSize(3).containsAll(coordinators);
+    }
+
+    @Test
+    void testGetAllCoordinatorsReturnsUnmodifiableList() {
+        List<ServerNode> coordinators =
+                Collections.singletonList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        assertThatThrownBy(
+                        () ->
+                                cluster.getAllCoordinators()
+                                        .add(
+                                                new ServerNode(
+                                                        1,
+                                                        "localhost",
+                                                        9124,
+                                                        ServerType.COORDINATOR)))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void testGetCoordinatorsByRole() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true),
+                        new ServerNode(
+                                2,
+                                "localhost",
+                                9125,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                false));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        List<ServerNode> leaders = cluster.getCoordinatorsByRole(CoordinatorRole.LEADER);
+        assertThat(leaders).hasSize(1).containsExactly(coordinators.get(0));
+
+        List<ServerNode> standbys = cluster.getCoordinatorsByRole(CoordinatorRole.STANDBY);
+        assertThat(standbys).hasSize(2).containsExactly(coordinators.get(1), coordinators.get(2));
+    }
+
+    @Test
+    void testIsCoordinatorLive() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true),
+                        new ServerNode(
+                                2,
+                                "localhost",
+                                9125,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                false));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        assertThat(cluster.isCoordinatorLive(0)).isTrue();
+        assertThat(cluster.isCoordinatorLive(1)).isTrue();
+        assertThat(cluster.isCoordinatorLive(2)).isFalse();
+        assertThat(cluster.isCoordinatorLive(999)).isFalse();
+    }
+
+    @Test
+    void testGetCoordinatorCount() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true),
+                        new ServerNode(
+                                2,
+                                "localhost",
+                                9125,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                false));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        assertThat(cluster.getCoordinatorCount()).isEqualTo(3);
+    }
+
+    @Test
+    void testGetCoordinatorsByRoleAndLiveness() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true),
+                        new ServerNode(
+                                2,
+                                "localhost",
+                                9125,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                false),
+                        new ServerNode(
+                                3,
+                                "localhost",
+                                9126,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                false));
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        coordinators);
+
+        List<ServerNode> liveLeaders =
+                cluster.getCoordinatorsByRoleAndLiveness(CoordinatorRole.LEADER, true);
+        assertThat(liveLeaders).hasSize(1).containsExactly(coordinators.get(0));
+
+        List<ServerNode> liveStandbys =
+                cluster.getCoordinatorsByRoleAndLiveness(CoordinatorRole.STANDBY, true);
+        assertThat(liveStandbys).hasSize(1).containsExactly(coordinators.get(1));
+
+        List<ServerNode> deadStandbys =
+                cluster.getCoordinatorsByRoleAndLiveness(CoordinatorRole.STANDBY, false);
+        assertThat(deadStandbys).hasSize(1).containsExactly(coordinators.get(2));
+
+        List<ServerNode> deadLeaders =
+                cluster.getCoordinatorsByRoleAndLiveness(CoordinatorRole.LEADER, false);
+        assertThat(deadLeaders).hasSize(1).containsExactly(coordinators.get(3));
+    }
+
+    @Test
+    void testClusterWithEmptyCoordinators() {
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        null,
+                        new HashMap<>(),
+                        new HashMap<>(),
+                        Collections.emptyMap(),
+                        Collections.emptyList());
+
+        assertThat(cluster.getAllCoordinators()).isEmpty();
+        assertThat(cluster.getCoordinatorCount()).isZero();
+        assertThat(cluster.getCoordinatorsByRole(CoordinatorRole.LEADER)).isEmpty();
+        assertThat(cluster.getCoordinatorsByRole(CoordinatorRole.STANDBY)).isEmpty();
+        assertThat(cluster.isCoordinatorLive(0)).isFalse();
+    }
+
+    @Test
+    void testClusterInvalidBucketMetaPreservesCoordinators() {
+        List<ServerNode> coordinators =
+                Arrays.asList(
+                        new ServerNode(
+                                0,
+                                "localhost",
+                                9123,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.LEADER,
+                                true),
+                        new ServerNode(
+                                1,
+                                "localhost",
+                                9124,
+                                ServerType.COORDINATOR,
+                                null,
+                                CoordinatorRole.STANDBY,
+                                true));
+
+        Map<PhysicalTablePath, List<BucketLocation>> tablePathToBucketLocations = new HashMap<>();
+        tablePathToBucketLocations.put(
+                DATA1_PHYSICAL_TABLE_PATH,
+                Arrays.asList(
+                        new BucketLocation(
+                                DATA1_PHYSICAL_TABLE_PATH,
+                                DATA1_TABLE_ID,
+                                0,
+                                NODES_IDS[0],
+                                NODES_IDS),
+                        new BucketLocation(
+                                DATA1_PHYSICAL_TABLE_PATH, DATA1_TABLE_ID, 1, null, NODES_IDS)));
+
+        Map<TablePath, Long> tablePathToTableId = new HashMap<>();
+        tablePathToTableId.put(DATA1_TABLE_PATH, DATA1_TABLE_ID);
+
+        Cluster cluster =
+                new Cluster(
+                        aliveTabletServersById,
+                        coordinators.get(0),
+                        tablePathToBucketLocations,
+                        tablePathToTableId,
+                        Collections.emptyMap(),
+                        coordinators);
+
+        Cluster invalidatedCluster =
+                cluster.invalidPhysicalTableBucketMeta(
+                        Collections.singleton(DATA1_PHYSICAL_TABLE_PATH));
+
+        assertThat(invalidatedCluster.getAllCoordinators()).hasSize(2).containsAll(coordinators);
+        assertThat(invalidatedCluster.getCoordinatorCount()).isEqualTo(2);
+    }
+
     private Cluster createCluster(Map<Integer, ServerNode> aliveTabletServersById) {
         Map<PhysicalTablePath, List<BucketLocation>> tablePathToBucketLocations = new HashMap<>();
         tablePathToBucketLocations.put(
