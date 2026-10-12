@@ -809,6 +809,17 @@ public final class Replica {
         // blocks waiting for them. Runs under leaderIsrUpdateLock(W), so no concurrent register.
         scannerManager.closeScannersForBucket(tableBucket);
 
+        // Stop the periodic snapshot manager before closing the KV closeable registry. Its
+        // close() is serialized with #triggerSnapshot() via the kv tablet's guarded executor
+        // (kvLock), so any snapshot initialization already in-flight completes (and possibly
+        // registers its async task with closeableRegistryForKv) before the registry below is
+        // marked closed. This avoids a periodic snapshot initialization racing with Replica
+        // deletion and trying to register a task after the registry has already been closed.
+        if (kvSnapshotManager != null) {
+            kvSnapshotManager.close();
+            kvSnapshotManager = null;
+        }
+
         if (closeableRegistry.unregisterCloseable(closeableRegistryForKv)) {
             IOUtils.closeQuietly(closeableRegistryForKv);
         }

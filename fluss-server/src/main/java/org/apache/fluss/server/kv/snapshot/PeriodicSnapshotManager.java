@@ -383,13 +383,22 @@ public class PeriodicSnapshotManager implements Closeable {
 
     @Override
     public void close() {
-        synchronized (this) {
-            // do-nothing, please make the periodicExecutor will be closed by external
-            started = false;
-            // cancel the scheduled task if not completed yet
-            if (scheduledTask != null && !scheduledTask.isDone()) {
-                scheduledTask.cancel(true);
-            }
+        // Run the actual stopping under the guardedExecutor so that it's serialized with
+        // #triggerSnapshot(): either this runs before a pending snapshot trigger, so that
+        // trigger will observe `started == false` and never reach snapshot initialization, or
+        // it runs after an in-flight snapshot initialization has completed. Either way, once
+        // this method returns, no new snapshot task can be registered, which allows callers to
+        // safely close shared resources (e.g. the KV closeable registry) right afterwards
+        // without racing an in-progress initialization.
+        guardedExecutor.execute(this::stop);
+    }
+
+    private synchronized void stop() {
+        // do-nothing, please make the periodicExecutor will be closed by external
+        started = false;
+        // cancel the scheduled task if not completed yet
+        if (scheduledTask != null && !scheduledTask.isDone()) {
+            scheduledTask.cancel(true);
         }
     }
 
